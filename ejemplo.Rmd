@@ -1,0 +1,278 @@
+---
+title: <center><h1>Caso práctico para el curso de Google Data Analytics</h1></center>
+subtitle: <center><h2>Caso práctico 1 Empresa Cyclistic</h2></center>
+author: <center>Por Odín Erik Romero Fernández</center>
+date: "Última actualización: 7/11/2022"
+output:  html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<center><h1>Escenario:</h1></center>
+La empresa Cyclistic, ofrece un servicio de bicicletas compartidas en Chicago. La directora de marketing de la empresa cree que el éxito futuro de la empresa depende de maximizar la cantidad de membresías anuales. El objetivo del grupo de trabajo de marketing del que formo parte tiene como objetivo el entender qué diferencias existen en el uso de las bicicletas Cyclistic, entre los ciclistas ocasionales y los ciclistas con suscripción anual. Con esta información el equipo de trabajo diseñará una nueva estrategia de marketing para convertir a los ciclistas ocasionales en miembros anuales.
+
+### La Empresa
+* Ofrece una flota de 5,824 bicicletas georreferenciadas y bloqueadas en una red de 692 estaciones en todo Chicago. Las bicicletas se pueden desbloquear desde una estación y devolverse en cualquier otra estación del sistema en cualquier momento.
+
+- La estrategia de marketing: se basaba en la construcción de un reconocimiento de marca general y en atraer a amplios segmentos de consumidores.
+- Los clientes pueden contratar uno de los planes de servicio de precios flexibles: 
+  - Pases de un viaje (Ciclista ocasional).
+  - Pases de día completo (Ciclista ocasional). 
+  - Membresías anuales (Ciclista anual).
+\vspace{0.5cm}
+- Los analistas financieros de Cyclistic llegaron a la conclusión de que los miembros anuales son mucho más rentables que los ciclistas ocasionales
+
+- Lily Moreno (Directora de Marketing), desea crear una campaña de marketing que atraiga a clientes ocasionales a las membresías anuales.
+
+### Objetivo
+- Identificar las diferencias entre clientes ocasionales y anuales, en el uso de las bicicletas del servicio.
+
+### Los datos
+Los datos históricos que se utilizaron para este análisis son los obtenidos por la empresa Motivate, la cual reunió los datos de su propia infraestructura y que serán usados como datos propios para la empresa ficticia Cyclistic.
+
+Los datos se encuentran guardados en un servidor en constante actualización y de fácil acceso mediante la página de [amazon aws](https://divvy-tripdata.s3.amazonaws.com/index.html), donde se encuentran diferentes links cada uno de los links lleva a una tabla .csv que contiene los datos de cada ruta realizada en un mes, desde el año dos mil trece al presente.
+
+En el presente trabajo se utilizaron los datos más actuales disponibles que abarcan desde octubre de 2021 a septiembre de 2022.
+
+### Procesamiento y limpieza de datos
+Se procedió a descargar los datos en una carpeta especial para los datos en bruto, dentro de la carpeta del proyecto, posteriormente una vez descomprimidos se realizó una copia de los mismos en otra carpeta donde se va a trabajar con los archivos copia.
+
+Se trabajará con el lenguaje de programación R y con el entorno de desarrollo integra (IDE) Rstudio.
+
+
+Se procede a realizar la primera revisión de los datos primero llamaremos los paquetes que se van a necesitar para el análisis de los datos, que previamente ya fueron instalados.
+
+```{r cars, message=FALSE, warning=FALSE, paged.print=FALSE}
+library(tidyverse) 
+library(lubridate) 
+library(ggplot2)
+library(kableExtra)
+
+```
+
+Ahora se procede a automatizar la lectura de los datos mediante el uso de un for
+
+```{r for para leer datos}
+for (i in 1:12){
+  if (i<10){
+    assign(paste0("tab",i),read.csv(paste0("D:/Documentos/Curso Gogle/Caso práctico/Datos a trabajar/",20220,i,"-divvy-tripdata.csv")))
+  } else{
+    assign(paste0("tab",i),read.csv(paste0("D:/Documentos/Curso Gogle/Caso práctico/Datos a trabajar/",2021,i,"-divvy-tripdata.csv")))
+  }
+}
+```
+
+
+Una vez que se tienen los datos ya leídos, se procede a corroborar que los nombres de cada tabla sean iguales para su posterior unión y así tener nuestra base de datos completa para su posterior análisis.
+
+
+```{r for de nombres}
+namesDF<-names(tab1)
+result<-vector()
+
+for (i in 1:11){
+  ho<-names(get(paste0("tab",i)))
+  result[i]<-setequal(ho, namesDF) #En esta parte del código se comparan los nombres de cada tabla con la primera 
+}
+result #Así se formó un vector con los resultados de todas las comparaciones donde se espera que todas sean TRUE
+```
+Al ver que los nombres de las tablas son correctos al tener en el vector "result" las evaluaciones afirmativas, se procede a eliminar las variables que ya no se van a usar.
+
+```{r}
+rm(ho,result,namesDF)
+```
+
+Ya que se verificó que el número de columnas y la ortografía de los nombres, se procede a la unión de las tablas para crear un data frame único.
+
+```{r}
+DF<-rbind(tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9,tab10,tab11,tab12)
+str(DF)
+```
+
+Se observa que los datos de fecha y hora no están en el formato correcto, que en los ids de las estaciones hay problemas porque no son del mismo formato de forma, también se va a checar los primeros datos de la tabla para corroborar que se encuentren en el orden correcto.
+
+```{r}
+dim(DF)
+head(DF)
+```
+
+Ahora se procede a revisar los conjuntos de datos.
+
+```{r}
+summary(DF[,9]);summary(DF[,10]);summary(DF[,11]);summary(DF[,12])
+```
+
+Se detecta la presencia de NA's en las latitudes y longitudes finales, que tienen que ver con los problemas de los registros de rutas de prueba que más adelante eliminaremos.
+
+Pasamos a trabajar con los datos de fecha y hora para formatearlos al formato correcto en R y así poder trabajar con ellos.
+
+```{r}
+DF[,3]<-ymd_hms(DF$"started_at")
+DF[,4]<-ymd_hms(DF$"ended_at")
+class(DF$"started_at")
+class(DF$"ended_at")
+```
+
+Se corroboró que los datos están en el formato adecuado, se procede a generar nuevas variables en el Data Frame, con el fin de mejorar la visualización y manejo de las variables del tiempo.
+
+```{r}
+DF<-DF%>%mutate(Year= year(DF$"ended_at"))%>%
+  mutate(Month=month(DF$"ended_at",label = TRUE))%>%
+  mutate(Day=day(DF$"ended_at"))%>%
+  mutate(ride_length= seconds(DF$"ended_at")-seconds(DF$"started_at"))
+DF$day_of_week <- format(as.Date(DF$"started_at"), "%A")
+```
+
+Se crearon las variables "Year", "Month", "day", "ride_length" y "day_of_week", aprovechando la creación de la variable "ride_length" (Duración del viaje), se verificaron las observaciones (filas de la tabla) que tienen valores  negativos y/o que también presentaron NAs, creando un nuevo Data frame sin estos datos.
+
+```{r}
+DF2 <- DF[-DF$ride_length<0,]
+```
+
+### Análisis de los datos
+
+
+Ahora se inicia el análisis descriptivo, con los valores de mediana máximo y mínimo de la variable de duración del viaje en segundos.
+\vspace{0.5cm}
+
+<center><h3>Medidas de tendencia central y el mínimo y máximo de la duración del viaje</h3></center>
+\vspace{0.5cm}
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+pr<-c()
+pr[1]<-mean(DF2$ride_length)
+pr[2]<-median(DF2$ride_length)
+pr[3]<-max(DF2$ride_length)
+pr[4]<-min(DF2$ride_length)
+ride<-data.frame("medidas"=c("Media","Mediana","Máximo","Mínimo") , "viaje"= pr)
+
+knitr::kable(ride,col.names =c("Medida", "Duración del viaje"),align = "c")%>%
+  kable_styling(full_width = F)
+```
+
+Ahora se obtienen los mismos parámetros para la duración del viaje, pero ahora para cada uno de los dos tipos de ciclistas, empezando por la media.
+\vspace{0.5cm}
+<center><h3>Duración de viaje promedio por tipo de usuario</h3></center>
+\vspace{0.5cm}
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+aggregate(DF2$ride_length ~ DF2$member_casual, FUN = mean)%>%
+  kable(col.names =c("Tipo de usuario", "Duración del viaje"),align = "c")%>%
+  kable_styling(full_width = F)
+```
+
+Podemos ver que el promedio de la duración del viaje de los ciclistas ocasionales es mucho mayor que de los ciclistas anuales, pasamos con la media.
+\vspace{0.5cm}
+<center><h3>Media de duración de viaje por tipo de usuario</h3></center>
+\vspace{0.5cm}
+```{r,echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+aggregate(DF2$ride_length ~ DF2$member_casual, FUN = median)%>%
+  kable(col.names =c("Tipo de usuario", "Duración del viaje"),align = "c")%>%
+  kable_styling(full_width = F)
+```
+
+En la media vemos que también el valor de los ciclistas ocasionales es mayor que la de los ciclistas anuales, se empieza a ver una tendencia en la que los ciclistas ocasionales tienden a pasar más tiempo en la bicicleta por viaje que los ciclistas anuales.
+\vspace{0.5cm}
+<center><h3>Máximo de duración de viaje por tipo de usuario</h3></center>
+\vspace{0.5cm}
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+aggregate(DF2$ride_length ~ DF2$member_casual, FUN = max)%>%
+  kable(col.names =c("Tipo de usuario", "Duración del viaje"),align = "c")%>%
+  kable_styling(full_width = F)
+```
+
+En el caso del valor máximo para cada una de los tipos de ciclistas si hay una gran diferencia entre los máximos registrados de cada uno, viendo así que por lo general los ciclistas ocasionales pasan más tiempo en la bicicleta que los usuarios anuales.
+\vspace{0.5cm}
+<center><h3>Mínimo de duración de viaje por tipo de usuario</h3></center>
+\vspace{0.5cm}
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+aggregate(DF2$ride_length ~ DF2$member_casual, FUN = min)%>%
+  kable(col.names =c("Tipo de usuario", "Duración del viaje"),align = "c")%>%
+  kable_styling(full_width = F)
+```
+
+En el valor mínimo donde se mantiene la tendencia siendo los ciclistas anuales los que presentan la menor duración para el viaje.
+
+Ahora creamos la tabla que nos presenta la duración de viajes por semana de cada tipo de usuario.
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+DF2$day_of_week <-as.factor(DF2$day_of_week)%>%
+  ordered( levels=c("domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"))
+counts<-aggregate(DF2$ride_length ~ DF2$member_casual + DF2$day_of_week,
+          FUN = mean)
+```
+
+\vspace{0.5cm}
+<center><h3>Duración de viaje por tipo de usuario en cada día de la semana</h3></center>
+\vspace{0.5cm}
+```{r,echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+kable(counts,col.names =c("Tipo de usuario","Día de la semana", "Duración del viaje"),align = "c")%>%
+  kable_styling(full_width = F)
+```
+
+
+Ahora visualizamos los datos del promedio de la duración de los viajes por día de la semana, dónde los fines de semana (de viernes a lunes),  es donde hay más actividad, siendo el domingo el día con mayor uso, para los ciclistas casuales, mientras que para los ciclistas anuales 
+el mayor uso es el sábado pero que las diferencias de uso a lo largo de la semana no son tan diferentes.
+
+Ahora se procederá a la creación de gráficos.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE, fig.align='center'}
+DF2$day_of_week <-as.factor(DF2$day_of_week)%>%
+  ordered( levels=c("domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"))
+DF2 %>% group_by(member_casual, day_of_week) %>% #groups by usertype and weekday
+  summarise(number_of_rides = n(),average_duration = mean(ride_length)) %>%
+  arrange(member_casual, day_of_week) %>%
+  ggplot(aes(x = day_of_week, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")+
+  labs(title="Número de viajes por día de la semana", x="Día de la semana", y="Número de viajes",fill="Ciclista")+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+En el gráfico se observa la misma tendencia observada con anterioridad en la que los ciclistas casuales los fines de semana presentan una mayor cantidad de viajes hechos que los ciclistas con membresía anual sin embargo, durante la semana los ciclistas anuales presentan una mayor cantidad de viajes que los ciclistas ocasionales.
+En el siguiente gráfico se presenta el promedio de la duración de los viajes por día de la semana.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE, fig.align='center'}
+DF2 %>%group_by(member_casual, day_of_week) %>%
+  summarise(number_of_rides = n(),average_duration = mean(ride_length)) %>%
+  arrange(member_casual, day_of_week) %>%
+  ggplot(aes(x = day_of_week, y = average_duration, fill =member_casual)) +
+  geom_col(position = "dodge")+
+  labs(title="Promedio de la duración del viaje", x="Día de la semana", y="Promedio de la duración del viaje", fill="Ciclista")+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+En el gráfico se observa que la duración de los paseos por parte de los ciclistas casuales es mucho mayor durante toda la semana.
+
+### Puntos clave
+
+Los ciclistas ocasionales presentan viajes más largos en comparación a los viajes de ciclistas anuales, además de tener un pico de uso los fines de semana mientras que los ciclistas anuales lo presentan entre semana.
+
+
+Por último se agrega la creación de un data frame con los datos agrupados para realizar los gráficos así como la creación del archivo .csv para posteriores revisiones y análisis.
+
+```{r}
+counts <- aggregate(DF2$ride_length ~ DF2$member_casual +
+                      DF2$day_of_week, FUN = mean)
+write.csv(counts, file = 'avg_ride_length.csv')
+```
+
+
+### Recomendaciones
+
+De los descubrimientos encontrados en la diferencia en el uso de las bicicletas por parte de los usuarios ocasionales y los anuales, se tienen tres recomendaciones para la estrategia de marketing.
+
+1. La primera recomendación es el incrementar el esfuerzo de marketing en las estaciones de bicicletas durante los fines de semana.
+2. Ofrecer una nueva membresía anual que sólo permita el uso de las bicicletas el fin de semana pero que también ofrezca descuentos en algunos restaurantes y lugares recreativos durante los fines de semana para así volver más atractiva la suscripción.
+3. Junto con la implementación del nuevo tipo de membresía acompañarla con un nuevo tipo de bicicletas más cómoda para viajes largos.
+\vspace{0.5cm}
+\vspace{0.5cm}
+\vspace{0.5cm}
+
+
